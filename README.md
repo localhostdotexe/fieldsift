@@ -1,7 +1,11 @@
 # fieldsift
 
 Point it at a few files in a format you don't have docs for and it tells
-you what the header fields are.
+you what the header fields are: lengths, offsets, checksums and the bytes
+they cover, chunk layout.
+
+    pip install git+https://github.com/localhostdotexe/fieldsift
+    fieldsift samples/
 
 ![fieldsift run on six firmware images](docs/fw.png)
 
@@ -37,9 +41,14 @@ Python 3.9+, standard library only.
 
 ## Install
 
-    pip install git+https://github.com/localhostdotexe/project
+    pip install git+https://github.com/localhostdotexe/fieldsift
 
-Or clone and run `python -m fieldsift` from the checkout.
+Or without installing anything:
+
+    git clone https://github.com/localhostdotexe/fieldsift
+    cd fieldsift
+    python examples/mkfw.py fw      # six sample images to play with
+    python -m fieldsift fw/
 
 ## Using it
 
@@ -57,8 +66,36 @@ Files or a directory of samples, either works.
 | `--no-sums`, `--no-chunks` | skip the checksum / chunk search |
 | `-v` | also show matches that lost to an overlapping field |
 
-Trailers are tracked from the end of the file and show up with negative
-offsets, so `-0x20` means 32 bytes before EOF.
+### Reading the output
+
+Each row is one field:
+
+    0x0014    4  u32le   checksum  crc32 of target(0x10) .. EOF-32      99 bits
+    offset  size  type   what      details                              score
+
+- Offsets under "from end of file" are negative. `-0x20` is 32 bytes
+  before EOF. That's how trailers stay put when the file size changes.
+- `target(0x10)` means "wherever the pointer at 0x10 points".
+- `EOF-32` means the range stops 32 bytes short of the end.
+- The score is explained under [How it decides](#how-it-decides). Anything
+  at 99 is as sure as it gets.
+
+Under the table there's a hexdump of the first sample with one letter per
+byte, so you can see what's still unexplained (the dots).
+
+`--json` gives the same thing for scripts:
+
+    $ fieldsift fw/ --json | jq '.fields[] | select(.kind == "checksum")'
+    {
+      "kind": "checksum",
+      "frame": "start",
+      "offset": 20,
+      "width": 4,
+      "type": "u32le",
+      "bits": 99.0,
+      "note": "crc32 of target(0x10) .. EOF-32",
+      ...
+    }
 
 ### The crc line
 
@@ -136,9 +173,16 @@ is tried with the field zeroed and with it cut out.
 fieldsift is for files: it works from both ends, pins checksums to an
 exact byte range, follows pointers, and hands over to a hex editor.
 
-## Tests
+## Hacking on it
 
     python -m unittest
+
+No dependencies, so there is nothing to set up. The detectors live in
+`fieldsift/detect.py` (things you can see by comparing values),
+`fieldsift/sums.py` (checksums) and `fieldsift/chunks.py` (chunk
+streams). `tests/formats.py` has small made up formats to test against.
+If you have a real format where it gets something wrong or misses
+something obvious, open an issue with a couple of samples.
 
 ## License
 
