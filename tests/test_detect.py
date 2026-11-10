@@ -175,5 +175,16 @@ class Output(unittest.TestCase):
             self.assertIn("@", hexpat.render(res))
 
 
+    def test_hexpat_avoids_reserved_names(self):
+        import re
+        from fieldsift import hexpat
+        rng = random.Random(1)
+        names = (b"abc", b"defgh", b"ijklmno", b"pqrs", b"rstuvwxyz", b"board7")
+        text = hexpat.render(analyze(formats.samples([formats.firmware(rng, n) for n in names])))
+        declared = re.findall(r"^\s+(?:(?:le|be) )?\w+ (\w+)(?:\[|;| \[\[)", text, re.M)
+        self.assertIn("text_len", declared)
+        self.assertFalse(set(declared) & hexpat.RESERVED)
+
+
 if __name__ == "__main__":
     unittest.main()

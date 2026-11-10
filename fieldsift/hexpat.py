@@ -3,7 +3,14 @@
 from .core import Finding
 
 NAMES = {"length": "size", "pointer": "ptr", "checksum": "sum", "digest": "digest",
-         "time": "timestamp", "string": "str"}
+         "time": "timestamp", "string": "text_len"}
+
+# type names and keywords of the pattern language, none of these can be a field name
+RESERVED = {"str", "char", "char16", "bool", "float", "double", "auto", "any", "padding",
+            "const", "struct", "union", "enum", "bitfield", "using", "fn", "in", "out", "ref",
+            "if", "else", "match", "while", "for", "break", "continue", "return", "this",
+            "parent", "true", "false", "null", "be", "le", "import", "namespace",
+            "addressof", "sizeof", "typenameof", "try", "catch"}
 
 
 def _ctype(f):
@@ -28,6 +35,8 @@ def _name(f, seen):
     base = NAMES.get(f.kind, "fixed")
     if f.kind == "checksum":
         base = f.info["algo"].split("/")[0].split(" ")[0].strip("-~(") or "sum"
+    if base in RESERVED:
+        base += "_"
     seen[base] = seen.get(base, 0) + 1
     return base if seen[base] == 1 else "%s%d" % (base, seen[base])
 
@@ -66,7 +75,7 @@ def render(res):
         body.append(line)
         cur = f.off + f.width
         if f.kind == "string":
-            body.append("    char %s_text[%s];" % (name, name))
+            body.append("    char %s[%s];" % (name.replace("_len", ""), name))
             body.append("    // layout past this point moves with the string")
             break
     if stop is not None and cur < stop:
