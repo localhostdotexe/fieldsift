@@ -1,5 +1,6 @@
 """Small in-memory file formats to run the detectors against."""
 
+import binascii
 import hashlib
 import struct
 import zlib
@@ -64,6 +65,12 @@ def summed(rng):
     """Record that ends in a one byte two's complement checksum."""
     body = b"\x02REC" + rng.randbytes(rng.randrange(40, 400))
     return body + bytes([-sum(body) & 0xFF])
+
+
+def crc16_frame(rng):
+    """Magic, crc16/ccitt-false of the payload, then the payload."""
+    body = rng.randbytes(rng.randrange(60, 3000))
+    return b"\x7eFRM" + struct.pack(">H", binascii.crc_hqx(body, 0xFFFF)) + b"\0\0" + body
 
 
 def tlv(rng):

@@ -11,6 +11,7 @@ import hashlib
 import sys
 import zlib
 from collections import defaultdict
+from functools import lru_cache
 
 from .core import Finding, raw
 
@@ -36,6 +37,31 @@ def _xor(seg):
     return x
 
 
+def _mul16(a, b):
+    """Multiply two polynomials mod the CCITT one (0x1021)."""
+    r = 0
+    while b:
+        if b & 1:
+            r ^= a
+        b >>= 1
+        a <<= 1
+        if a & 0x10000:
+            a ^= 0x11021
+    return r
+
+
+@lru_cache(maxsize=None)
+def _xpow(nbytes):
+    """x^(8 * nbytes) mod the CCITT polynomial."""
+    r, base = 1, 0x100
+    while nbytes:
+        if nbytes & 1:
+            r = _mul16(r, base)
+        base = _mul16(base, base)
+        nbytes >>= 1
+    return r
+
+
 def _wordsums(seg):
     a = array.array("I")
     a.frombytes(seg)
@@ -53,7 +79,7 @@ class Running:
         self.crc = 0
         self.adler = 1
         self.x0 = 0
-        self.xf = 0xFFFF
+        self.shift = 1
         self.hashes = {w: hashlib.new(name) for w, name in DIGESTS.items() if w in self.need}
 
     def copy(self, need=None):
@@ -71,14 +97,18 @@ class Running:
             self.adler = zlib.adler32(seg, self.adler)
         if 2 in self.need:
             self.x0 = binascii.crc_hqx(seg, self.x0)
-            self.xf = binascii.crc_hqx(seg, self.xf)
+            self.shift = _mul16(self.shift, _xpow(len(seg)))
         for h in self.hashes.values():
             h.update(seg)
 
     def table(self):
         t = {}
         if 2 in self.need:
-            t[2] = [("crc16/xmodem", self.x0), ("crc16/ccitt-false", self.xf)]
+            # crc_hqx is the slowest primitive here, so run it once with
+            # init 0 and get the init 0xffff variant from linearity:
+            # crc(init, m) = crc(0, m) ^ init * x^(8 * len(m))
+            ccitt = self.x0 ^ _mul16(0xFFFF, self.shift)
+            t[2] = [("crc16/xmodem", self.x0), ("crc16/ccitt-false", ccitt)]
         if 4 in self.need:
             t[4] = [("crc32", self.crc), ("crc32/jamcrc", ~self.crc & 0xFFFFFFFF),
                     ("adler32", self.adler)]
@@ -145,12 +175,12 @@ class Prefix:
             wa, wb = self.words[a], self.words[b]
             words = (wb[0] - wa[0], wb[1] - wa[1])
         if hole:
-            raw_, p = hole
-            bsum -= sum(raw_)
-            xor ^= _xor(raw_)
-            if words and len(raw_) == 4 and p % 4 == 0:
-                words = (words[0] - int.from_bytes(raw_, "little"),
-                         words[1] - int.from_bytes(raw_, "big"))
+            gone, p = hole
+            bsum -= sum(gone)
+            xor ^= _xor(gone)
+            if words and len(gone) == 4 and p % 4 == 0:
+                words = (words[0] - int.from_bytes(gone, "little"),
+                         words[1] - int.from_bytes(gone, "big"))
             else:
                 words = None
         return _additive(need, bsum, xor, words)

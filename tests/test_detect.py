@@ -74,6 +74,27 @@ class Checksums(unittest.TestCase):
         res = analyze(formats.samples(blobs[:2]))
         self.assertNotIn(-1, by_off(res, "end"))
 
+    def test_crc16(self):
+        rng = random.Random(6)
+        res = analyze(formats.samples([formats.crc16_frame(rng) for _ in range(4)]))
+        f = by_off(res)[4]
+        self.assertEqual((f.info["algo"], f.endian), ("crc16/ccitt-false", "be"))
+        self.assertEqual(f.info["start"], ["abs", 8])
+
+    def test_crc16_init_shortcut(self):
+        import binascii
+        from fieldsift.sums import Running
+        rng = random.Random(7)
+        st = Running({2})
+        blob = b""
+        for n in (1, 7, 300, 4096, 13):
+            piece = rng.randbytes(n)
+            blob += piece
+            st.feed(piece)
+            got = dict(st.table()[2])
+            self.assertEqual(got["crc16/xmodem"], binascii.crc_hqx(blob, 0))
+            self.assertEqual(got["crc16/ccitt-false"], binascii.crc_hqx(blob, 0xFFFF))
+
     def test_single_sample_crc(self):
         rng = random.Random(2)
         res = analyze(formats.samples([formats.be_header(rng)]))
