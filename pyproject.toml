@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fieldsift"
-version = "0.1.0"
+version = "0.1.1"
 description = "Find length fields, offsets, checksums and chunk structure in an unknown binary format by comparing samples"
 readme = "README.md"
 license = { text = "MIT" }
