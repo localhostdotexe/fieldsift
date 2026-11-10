@@ -29,33 +29,43 @@ def layouts():
 
 
 def walk(data, start, lay, limit=20000):
+    """Hop chunk to chunk from start. Returns [(offset, data length)] or None."""
     size = len(data)
-    hdr = lay.tag + lay.len
+    width, trail, align = lay.len, lay.trail, lay.align
+    hdr = lay.tag + width
     lo = lay.tag if lay.order == "TL" else 0
     bo = "big" if lay.endian == "be" else "little"
-    if lay.len == 1:
+    extra = hdr + trail
+    whole = lay.counts == "total"
+    if width == 1:
         # one byte lengths hop through anything, don't follow them forever
         limit = 1024
+    last = size - hdr
     pos = start
     out = []
     empty = 0
     while pos < size:
-        if size - pos < hdr:
+        if pos > last:
             return None
-        n = int.from_bytes(data[pos + lo:pos + lo + lay.len], bo)
-        if lay.counts == "total":
-            n -= hdr + lay.trail
+        n = int.from_bytes(data[pos + lo:pos + lo + width], bo)
+        if whole:
+            n -= extra
             if n < 0:
                 return None
-        end = pos + hdr + n + lay.trail
+        end = pos + n + extra
         if end > size:
             return None
-        empty = empty + 1 if n == 0 else 0
-        if empty > 8 or len(out) >= limit:
+        if n:
+            empty = 0
+        else:
+            empty += 1
+            if empty > 8:
+                return None
+        if len(out) >= limit:
             return None
         out.append((pos, n))
-        if lay.align > 1:
-            end = min(size, -(-end // lay.align) * lay.align)
+        if align > 1:
+            end = min(size, -(-end // align) * align)
         pos = end
     return out
 
@@ -65,13 +75,13 @@ def tag_of(data, pos, lay):
     return data[o:o + lay.tag]
 
 
-def _texty(tag):
+def texty(tag):
     return all(c == 0x20 or c == 0x5F or 0x30 <= c <= 0x39 or 0x41 <= c <= 0x5A or 0x61 <= c <= 0x7A
                for c in tag)
 
 
 def _named(data, lay, chunks):
-    return lay.tag >= 2 and all(_texty(tag_of(data, p, lay)) for p, _ in chunks)
+    return lay.tag >= 2 and all(texty(tag_of(data, p, lay)) for p, _ in chunks)
 
 
 def _score(data, lay, chunks):
@@ -80,7 +90,7 @@ def _score(data, lay, chunks):
     for pos, n in chunks:
         if n:
             bits += min(6.0, max(0.0, 8 * lay.len - math.log2(size - pos + 1)))
-        if lay.tag >= 2 and _texty(tag_of(data, pos, lay)):
+        if lay.tag >= 2 and texty(tag_of(data, pos, lay)):
             bits += 2.2 * lay.tag
     # landing exactly on EOF is about a 1 in (average chunk size) fluke
     span = (size - chunks[0][0]) / len(chunks)

@@ -85,7 +85,7 @@ def text(res, show_map=True, verbose=False):
         lines.append("  %s chunks per file" % n)
         if ch["tags"]:
             tags = ch["tags"]
-            if all(chunkmod._texty(t) for t in tags):
+            if all(chunkmod.texty(t) for t in tags):
                 shown = " ".join(t.decode("ascii") for t in tags[:16])
             else:
                 shown = " ".join(t.hex() for t in tags[:16])
