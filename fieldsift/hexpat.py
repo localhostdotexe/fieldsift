@@ -1,5 +1,7 @@
 """Turn the findings into a starting point for an ImHex pattern."""
 
+from .core import Finding
+
 NAMES = {"length": "size", "pointer": "ptr", "checksum": "sum", "digest": "digest",
          "time": "timestamp", "string": "str"}
 
@@ -54,7 +56,7 @@ def render(res):
             if f.kind not in ("magic", "const"):
                 break
             # a constant run that spills into the first chunk
-            f = type(f)(f.kind, f.frame, f.off, stop - f.off)
+            f = Finding(f.kind, f.frame, f.off, stop - f.off)
         if f.off > cur:
             body.append("    u8 unk_%02x[%d];" % (cur, f.off - cur))
         name = _name(f, seen)

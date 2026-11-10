@@ -48,6 +48,10 @@ def _length_note(frame, off, width, k, c):
     return "file size / %d" % k
 
 
+def _day(t):
+    return time.strftime("%Y-%m-%d", time.gmtime(t))
+
+
 def lengths(samples, where):
     sizes = [s.size for s in samples]
     nsz = len(set(sizes))
@@ -138,8 +142,7 @@ def timestamps(samples, where):
             vals = ints(chunks, en)
             if min(vals) < EPOCH_LO or max(vals) > hi:
                 continue
-            fmt = lambda t: time.strftime("%Y-%m-%d", time.gmtime(t))
-            a, b = fmt(min(vals)), fmt(max(vals))
+            a, b = _day(min(vals)), _day(max(vals))
             note = "unix time, " + (a if a == b else "%s .. %s" % (a, b))
             # roughly a 1 in 5 chance for a random u32 to fall in range
             out.append(Finding("time", frame, off, 4, en, 2.3 * n, note))

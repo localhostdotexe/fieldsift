@@ -1,5 +1,5 @@
 from . import chunks, detect, sums
-from .core import HEAD, TAIL, spots
+from .core import HEAD, TAIL, Finding, spots
 
 # on a tie the 4 byte reading is usually the right one
 WIDTH_PREF = {4: 0, 2: 1, 8: 2, 1: 3}
@@ -55,8 +55,8 @@ def _settle(found, base):
             kind = f.kind if any(part) else "zero"
             if kind == "magic" and a != lo:
                 kind = "const"
-            g = type(f)(kind, f.frame, f.off + (a - lo), b - a, "", f.bits, "", {"bytes": part.hex()})
-            keep.append(g)
+            keep.append(Finding(kind, f.frame, f.off + (a - lo), b - a, "", f.bits, "",
+                                {"bytes": part.hex()}))
     keep.sort(key=lambda f: (f.frame != "start", f.off))
     return keep, drop
 
